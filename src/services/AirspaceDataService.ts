@@ -125,8 +125,9 @@ export class AirspaceDataService {
         const endTimeMinutes = endHour * 60 + endMinute;
 
         const isDayActive = restriction.daysOfWeek.includes(currentDay);
-        const isTimeActive = currentTimeMinutes >= startTimeMinutes && 
-                           currentTimeMinutes <= endTimeMinutes;
+        const isTimeActive = startTimeMinutes <= endTimeMinutes
+          ? currentTimeMinutes >= startTimeMinutes && currentTimeMinutes <= endTimeMinutes
+          : currentTimeMinutes >= startTimeMinutes || currentTimeMinutes <= endTimeMinutes;
 
         return isDayActive && isTimeActive;
       });

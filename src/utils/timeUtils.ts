@@ -67,7 +67,9 @@ export class TimeCalculator {
             const startTimeMinutes = startHour * 60 + startMinute;
             const endTimeMinutes = endHour * 60 + endMinute;
 
-            return currentTimeMinutes >= startTimeMinutes && currentTimeMinutes <= endTimeMinutes;
+            return startTimeMinutes <= endTimeMinutes
+                ? currentTimeMinutes >= startTimeMinutes && currentTimeMinutes <= endTimeMinutes
+                : currentTimeMinutes >= startTimeMinutes || currentTimeMinutes <= endTimeMinutes;
         } catch (error) {
             console.error('Error checking time range:', error);
             return false;
