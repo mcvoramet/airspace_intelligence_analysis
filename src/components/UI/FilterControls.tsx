@@ -38,7 +38,23 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
     const [currentTime, setCurrentTime] = useState('');
     const [currentDate, setCurrentDate] = useState('');
 
-    const timeOptions = ['now', '+1h', '+2h', '+3h', '+4h', '+5h', '+6h', '+12h', '+24h'];
+    const timeOptions = [
+        { label: '-24h', offset: -24 },
+        { label: '-12h', offset: -12 },
+        { label: '-6h', offset: -6 },
+        { label: '-3h', offset: -3 },
+        { label: '-2h', offset: -2 },
+        { label: '-1h', offset: -1 },
+        { label: 'now', offset: 0 },
+        { label: '+1h', offset: 1 },
+        { label: '+2h', offset: 2 },
+        { label: '+3h', offset: 3 },
+        { label: '+4h', offset: 4 },
+        { label: '+5h', offset: 5 },
+        { label: '+6h', offset: 6 },
+        { label: '+12h', offset: 12 },
+        { label: '+24h', offset: 24 }
+    ];
     
     const layerGroups = [
         {
@@ -73,16 +89,11 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
     // Update current time
     useEffect(() => {
         const timer = setInterval(() => {
-            const now = new Date();
-            now.setHours(now.getHours() + timeRange.offset);
+            const now = new Date(Date.now() + timeRange.offset * 60 * 60 * 1000);
 
-            const timeString = now.toLocaleTimeString('en-US', {
-                hour12: false,
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit'
-            });
+            const timeString = now.toISOString().substring(11, 19);
             const dateString = now.toLocaleDateString('en-US', {
+                timeZone: 'UTC',
                 weekday: 'short',
                 day: 'numeric',
                 month: 'long',
@@ -102,15 +113,16 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
         });
     };
 
-    const handleTimeChange = (index: number) => {
-        const newOffset = index;
-        const now = new Date();
-        now.setHours(now.getHours() + newOffset);
-        
+    const handleTimeChange = (offset: number) => {
+        const target = new Date(Date.now() + offset * 60 * 60 * 1000);
+        const startOfDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth(), target.getUTCDate(), 0, 0, 0, 0));
+        const endOfDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth(), target.getUTCDate(), 23, 59, 59, 999));
+
         setTimeRange({
-            ...timeRange,
-            offset: newOffset,
-            current: now.toISOString()
+            start: startOfDay.toISOString(),
+            end: endOfDay.toISOString(),
+            current: target.toISOString(),
+            offset
         });
     };
 
@@ -160,7 +172,7 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
                 <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 text-center">
                     <div className="text-xs font-medium text-blue-600 uppercase tracking-wide">{currentDate}</div>
                     <div className="text-2xl font-bold text-gray-900 my-1">{currentTime}</div>
-                    <div className="text-xs text-blue-700 font-medium">UTC+7 (+{timeRange.offset}h)</div>
+                    <div className="text-xs text-blue-700 font-medium">UTC (offset {timeRange.offset}h)</div>
                 </div>
             </motion.div>
 
@@ -188,17 +200,17 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
                         </div>
 
                         <div className="grid grid-cols-3 gap-3">
-                            {timeOptions.map((option, index) => (
+                            {timeOptions.map((option) => (
                                 <button
-                                    key={option}
-                                    onClick={() => handleTimeChange(index)}
+                                    key={option.label}
+                                    onClick={() => handleTimeChange(option.offset)}
                                     className={`p-3 rounded-xl text-sm font-medium transition-all duration-200 ${
-                                        timeRange.offset === index
+                                        timeRange.offset === option.offset
                                             ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25 border border-blue-600'
                                             : 'bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 hover:border-gray-300'
                                     }`}
                                 >
-                                    {option}
+                                    {option.label}
                                 </button>
                             ))}
                         </div>

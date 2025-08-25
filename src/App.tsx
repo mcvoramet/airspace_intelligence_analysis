@@ -23,11 +23,17 @@ function App() {
     waypointLayer: true
   });
 
-  const [timeRange, setTimeRange] = useState<TimeRange>({
-    start: new Date().toISOString(),
-    end: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-    current: new Date().toISOString(),
-    offset: 0
+  const [timeRange, setTimeRange] = useState<TimeRange>(() => {
+    const now = new Date();
+    const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+    const endOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
+
+    return {
+      start: startOfDay.toISOString(),
+      end: endOfDay.toISOString(),
+      current: now.toISOString(),
+      offset: 0
+    };
   });
 
   const [filters, setFilters] = useState<FilterState>({
@@ -112,6 +118,7 @@ function App() {
         mapGeo={mapGeo}
         onMapClick={handleMapClick}
         selectedElement={selectedElement}
+        timeRange={timeRange}
       />
 
       <FilterControls
