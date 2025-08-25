@@ -1,11 +1,11 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
 import { MAP_CONFIG, LAYER_STYLES, Z_INDEX } from '../../utils/constants';
-import type { LayerVisibility, MapClickEvent } from '../../types';
+import type { LayerVisibility, MapClickEvent, TimeRange } from '../../types';
 import { WeatherLabelManager } from '../Weather/WeatherLabels';
 import { WeatherPopupGenerator } from '../Weather/WeatherPopup';
 import { FlightLayerManager } from '../Flight/FlightLayerManager';
@@ -30,6 +30,7 @@ interface AirspaceMapProps {
     mapGeo: GeoJSON.GeoJsonObject | null;
     onMapClick?: (event: MapClickEvent) => void;
     selectedElement?: { type: string; id: string } | null;
+    timeRange: TimeRange;
 }
 
 export const AirspaceMap: React.FC<AirspaceMapProps> = ({
@@ -37,14 +38,17 @@ export const AirspaceMap: React.FC<AirspaceMapProps> = ({
     mapView,
     mapGeo,
     onMapClick,
-    selectedElement
+    selectedElement,
+    timeRange
 }) => {
     const mapRef = useRef<L.Map | null>(null);
     const hoverLayerRef = useRef<L.GeoJSON | null>(null);
 
     // Data hooks
-    const { flightPlans } = useFlightData();
-    const { dangerAreas, restrictedAreas, militaryAreas } = useAirspaceData();
+    const flightFilter = useMemo(() => ({ timeRange: { start: timeRange.start, end: timeRange.end } }), [timeRange.start, timeRange.end]);
+    const airspaceFilter = useMemo(() => ({ timeRange: { start: timeRange.start, end: timeRange.end } }), [timeRange.start, timeRange.end]);
+    const { flightPlans } = useFlightData(flightFilter);
+    const { dangerAreas, restrictedAreas, militaryAreas } = useAirspaceData(airspaceFilter);
     const { sigmetFeatures, airmetFeatures } = useWeatherData();
 
     const layersRef = useRef<{
