@@ -76,7 +76,11 @@ export const AirspaceMap: React.FC<AirspaceMapProps> = ({
         const map = L.map('map', {
             center: MAP_CONFIG.center,
             zoom: MAP_CONFIG.zoom,
-            zoomControl: false
+            zoomControl: false,
+            fadeAnimation: true,
+            zoomAnimation: true,
+            zoomSnap: 0.5,
+            zoomDelta: 0.5
         });
 
         // Add base layer

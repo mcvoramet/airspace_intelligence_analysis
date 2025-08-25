@@ -60,16 +60,16 @@ export const DemandCapacityChart: React.FC<DemandCapacityChartProps> = ({
     margin: { l: 40, r: 20, t: 20, b: 40 },
     paper_bgcolor: 'rgba(255,255,255,0)',
     plot_bgcolor: 'rgba(255,255,255,0)',
-    font: { color: '#374151', size: 10 },
+    font: { color: '#1f2937', size: 12 },
     xaxis: {
-      gridcolor: 'rgba(0,0,0,0.1)',
-      tickfont: { size: 9, color: '#6b7280' },
+      gridcolor: 'rgba(0,0,0,0.2)',
+      tickfont: { size: 11, color: '#374151' },
       showgrid: true,
       zeroline: false
     },
     yaxis: {
-      gridcolor: 'rgba(0,0,0,0.1)',
-      tickfont: { size: 9, color: '#6b7280' },
+      gridcolor: 'rgba(0,0,0,0.2)',
+      tickfont: { size: 11, color: '#374151' },
       showgrid: true,
       zeroline: false
     },
@@ -77,7 +77,7 @@ export const DemandCapacityChart: React.FC<DemandCapacityChartProps> = ({
       x: 0,
       y: 1,
       bgcolor: 'rgba(255,255,255,0)',
-      font: { size: 9, color: '#374151' }
+      font: { size: 11, color: '#1f2937' }
     },
     showlegend: true,
     hovermode: 'x unified' as const
