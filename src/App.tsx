@@ -102,9 +102,9 @@ function App() {
   };
 
   return (
-    <div className="w-screen h-screen relative bg-gray-50 overflow-hidden">
+    <div className="w-screen h-screen relative bg-gray-100 text-gray-900 overflow-hidden">
       {/* Background Pattern */}
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-white to-indigo-50 opacity-30 z-0"></div>
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-100 via-gray-200 to-indigo-100 opacity-50 z-0"></div>
 
       <AirspaceMap
         layerVisibility={layerVisibility}
