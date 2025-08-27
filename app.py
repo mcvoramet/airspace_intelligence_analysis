@@ -1,93 +1,36 @@
-# dash_app.py (NOAA Saildrone–inspired UI)
-# -----------------------------------------------------------------------------
-# Dash/Plotly app for querying Microsoft SQL Server and visualizing:
-#  - Flight trajectories intersecting a selected sector (StaticAirspace)
-#  - Sector polygon overlay on a map
-#  - Demand bar chart by interval
-#  - Flight table synced to chart hover/click (and map highlight)
-#
-# Design updates inspired by PMEL Saildrone app:
-#  - Top navbar with controls & status
-#  - Collapsible off-canvas settings (mode, decimation, columns)
-#  - Dark theme styling
-#  - URL query-state sync (start/end, sector, columns, mode)
-# -----------------------------------------------------------------------------
+"""Dash application for querying Microsoft SQL Server flight data and visualizing it."""
+
 import os
 from urllib.parse import urlencode, parse_qs
 from datetime import datetime, timedelta
 
-import pyodbc
 import pandas as pd
-from shapely import wkt as shapely_wkt
-from shapely.geometry import LineString, MultiLineString, Polygon, MultiPolygon, Point
-
 import dash
 from dash import Dash, dcc, html, Input, Output, State, dash_table, ctx
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except Exception:
-    pass
-
-# =============================
-# 1) DB CONNECTION HELPERS
-# =============================
-DB_DRIVER = os.getenv("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server")
-DB_SERVER = os.getenv("MSSQL_SERVER", "localhost,1433")  # include port if needed
-DB_DATABASE = os.getenv("MSSQL_DATABASE", "ATFAS")
-DB_UID = os.getenv("MSSQL_UID", "sa")
-DB_PWD = os.getenv("MSSQL_PWD", "YourStrong(!)Password")
+from utils.db import sql_query
+from utils.geometry import (
+    line_wkt_to_segments,
+    wkt_to_points,
+    decimate_points,
+    polygon_wkt_to_geojson_feature,
+)
+from utils.time import floor_to_20
+from utils.theme import THEME
 
 # Performance knobs
-MAX_TRAJ = int(os.getenv("MAX_TRAJ", "2000"))               # hard cap trajectories
-SIMPLIFY_BASE_M = float(os.getenv("SIMPLIFY_BASE_M", "400")) # meters per decimation unit
-
-CONNECTION = (
-    f"DRIVER={{{DB_DRIVER}}};"
-    f"SERVER={DB_SERVER};"
-    f"DATABASE={DB_DATABASE};"
-    f"UID={DB_UID};PWD={DB_PWD};"
-    "Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=10;"
-)
-
-MAX_TRAJ = int(os.getenv("MAX_TRAJ", "2000"))
+MAX_TRAJ = int(os.getenv("MAX_TRAJ", "2000"))  # hard cap trajectories
+SIMPLIFY_BASE_M = float(os.getenv("SIMPLIFY_BASE_M", "400"))  # meters per decimation unit
 SIMPLIFY_TOL_DEG = float(os.getenv("SIMPLIFY_TOL_DEG", "0.0005"))
 HOVER_MAX_FLIGHTS = int(os.getenv("HOVER_MAX_FLIGHTS", "30"))
+
 # --- Layout height constants (in viewport height) ---
 RIGHT_BAR_VH = 40
 RIGHT_TABLE_VH = 45
 MAP_VH = 79  # map height will match right column total
 
-
-
-def sql_query(query: str, params: tuple | None = None) -> pd.DataFrame:
-    with pyodbc.connect(CONNECTION) as conn:
-        df = pd.read_sql(query, conn, params=params)
-    return df
-DB_SERVER = os.getenv("MSSQL_SERVER", "localhost,1433")  # include port if needed
-DB_DATABASE = os.getenv("MSSQL_DATABASE", "ATFAS")
-DB_UID = os.getenv("MSSQL_UID", "sa")
-DB_PWD = os.getenv("MSSQL_PWD", "YourStrong(!)Password")
-
-CONNECTION = (
-    f"DRIVER={{{DB_DRIVER}}};"
-    f"SERVER={DB_SERVER};"
-    f"DATABASE={DB_DATABASE};"
-    f"UID={DB_UID};PWD={DB_PWD};"
-    "Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=10;"
-)
-
-def sql_query(query: str, params: tuple | None = None) -> pd.DataFrame:
-    with pyodbc.connect(CONNECTION) as conn:
-        df = pd.read_sql(query, conn, params=params)
-    return df
-
-# =============================
-# 2) DATA ACCESS LAYERS
-# =============================
 SQL_SECTORS = """
 SELECT [Id], [Name], [LowerLimitFt], [UpperLimitFt], [Geography].STAsText() AS WKT
 FROM [StaticAirspace]
@@ -152,133 +95,9 @@ WHERE ft.[IsActive] = 1
 ORDER BY ft.[StartTime] ASC;
 """
 
-# =============================
-# 3) GEOM PARSING HELPERS
-
-# =============================
-
-def _linestring_to_latlon_lists(geom: LineString) -> tuple[list, list]:
-    lats, lons = [], []
-    for x, y in geom.coords:  # Assuming (lon, lat)
-        lons.append(x)
-        lats.append(y)
-    return lats, lons
-
-
-def line_wkt_to_segments(wkt: str, decimation: int = 1) -> list[tuple[list, list]]:
-    """Return a list of (lats, lons) segments for LineString/MultiLineString with optional decimation.
-    decimation=N keeps every Nth point. For Point, returns a 1‑point segment.
-    """
-    if not wkt:
-        return []
-    geom = shapely_wkt.loads(wkt)
-    segments: list[tuple[list, list]] = []
-
-    def decimate_xy(lat_list, lon_list, n):
-        if n <= 1:
-            return lat_list, lon_list
-        return lat_list[::n], lon_list[::n]
-
-    if isinstance(geom, Point):
-        lats, lons = [geom.y], [geom.x]
-        segments.append(decimate_xy(lats, lons, max(1, decimation)))
-    elif isinstance(geom, LineString):
-        lats, lons = _linestring_to_latlon_lists(geom)
-        segments.append(decimate_xy(lats, lons, max(1, decimation)))
-    elif isinstance(geom, MultiLineString):
-        for ls in geom.geoms:
-            lats, lons = _linestring_to_latlon_lists(ls)
-            segments.append(decimate_xy(lats, lons, max(1, decimation)))
-    return segments
-
-
-def wkt_to_points(wkt: str) -> list[tuple[float, float]]:
-    """Flatten WKT (Point/LineString/MultiLineString) into a list of (lat, lon) tuples."""
-    if not wkt:
-        return []
-    g = shapely_wkt.loads(wkt)
-    pts: list[tuple[float,float]] = []
-    if isinstance(g, Point):
-        pts.append((g.y, g.x))
-    elif isinstance(g, LineString):
-        for x, y in g.coords:
-            pts.append((y, x))
-    elif isinstance(g, MultiLineString):
-        for ls in g.geoms:
-            for x, y in ls.coords:
-                pts.append((y, x))
-    return pts
-
-
-def decimate_points(points: list[tuple[float,float]], n: int) -> list[tuple[float,float]]:
-    n = max(1, int(n or 1))
-    return points[::n]
-
-
-def polygon_wkt_to_geojson_feature(name: str, wkt: str, props: dict | None = None) -> dict:
-    """Convert WKT (Polygon/MultiPolygon) to a proper GeoJSON Feature including holes."""
-    geom = shapely_wkt.loads(wkt)
-    props = props or {}
-
-    def rings_for_polygon(poly: Polygon):
-        # Exterior
-        sx, sy = poly.exterior.coords.xy
-        shell = [[float(x), float(y)] for x, y in zip(sx, sy)]
-        # Holes
-        holes = []
-        for interior in poly.interiors:
-            ix, iy = interior.coords.xy
-            holes.append([[float(x), float(y)] for x, y in zip(ix, iy)])
-        return [shell] + holes  # full set of rings
-
-    if isinstance(geom, Polygon):
-        coords = rings_for_polygon(geom)
-        geometry = {"type": "Polygon", "coordinates": coords}
-        return {"type": "Feature", "properties": {"name": name, **props}, "geometry": geometry}
-    elif isinstance(geom, MultiPolygon):
-        multi = []
-        for p in geom.geoms:
-            multi.append(rings_for_polygon(p))
-        geometry = {"type": "MultiPolygon", "coordinates": multi}
-        return {"type": "Feature", "properties": {"name": name, **props}, "geometry": geometry}
-    else:
-        # Fallback: return empty geometry
-        return {"type": "Feature", "properties": {"name": name, **props}, "geometry": None}
-    props = props or {}
-
-    def poly_to_coords(poly: Polygon):
-        x, y = poly.exterior.coords.xy
-        shell = [[float(xi), float(yi)] for xi, yi in zip(x, y)]
-        holes = []
-        for interior in poly.interiors:
-            ix, iy = interior.coords.xy
-            holes.append([[float(xi), float(yi)] for xi, yi in zip(ix, iy)])
-        return [shell] + holes
-
-    if isinstance(geom, Polygon):
-        coords = poly_to_coords(geom)
-        geometry = {"type": "Polygon", "coordinates": [coords[0]]}
-        return {"type": "Feature", "properties": {"name": name, **props}, "geometry": geometry}
-    elif isinstance(geom, MultiPolygon):
-        parts = []
-        for p in geom.geoms:
-            parts.append(poly_to_coords(p)[0])
-        geometry = {"type": "MultiPolygon", "coordinates": [[ring] for ring in parts]}
-        return {"type": "Feature", "properties": {"name": name, **props}, "geometry": geometry}
-    else:
-        return {"type": "Feature", "properties": {"name": name, **props}, "geometry": None}
-
-# Helper: floor a timestamp to 20‑minute boundaries (00, 20, 40)
-from datetime import timezone
-
-def floor_to_20(dt: datetime) -> datetime:
-    dt = dt.replace(second=0, microsecond=0, tzinfo=None)
-    return dt - timedelta(minutes=(dt.minute % 20))
-
-# =============================
 # 4) APP & LAYOUT (Dark theme + Navbar + Offcanvas)
 # =============================
-app: Dash = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY], suppress_callback_exceptions=True)
+app: Dash = dash.Dash(__name__, external_stylesheets=[THEME], suppress_callback_exceptions=True)
 app.title = "ATFAS Trajectory & Demand"
 
 # Fetch sectors once for dropdown options
