@@ -1,0 +1,19 @@
+MSSQL_DRIVER# ================================
+# Microsoft SQL Server Connection
+# ================================
+MSSQL_DRIVER=ODBC Driver 18 for SQL Server
+MSSQL_SERVER=IP,PORT
+MSSQL_DATABASE=ATFAS
+MSSQL_UID=USERNAME
+MSSQL_PWD=PASSWORD
+
+# ================================
+# Dash App Config
+# ================================
+# Host/port settings for running the Dash app
+DASH_HOST=0.0.0.0
+DASH_PORT=8050
+DASH_DEBUG=True
+HOVER_MAX_FLIGHTS=30
+
+

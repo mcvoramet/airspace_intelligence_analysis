@@ -1,0 +1,7 @@
+dash>=2.16.0
+dash-bootstrap-components>=1.6.0
+pandas>=2.2.0
+plotly>=5.22.0
+pyodbc>=5.1.0
+shapely>=2.0.3
+python-dotenv>=1.0.0
